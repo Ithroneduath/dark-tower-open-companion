@@ -1,0 +1,92 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "src-tauri/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/build-windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Verify v0.5.0 source and cache isolation
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json | ConvertFrom-Json
+          $tauri = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
+          $window = $tauri.app.windows[0]
+          Write-Host "package.json version: $($package.version)"
+          Write-Host "Tauri version: $($tauri.version)"
+          Write-Host "Window title: $($window.title)"
+          Write-Host "Window URL: $($window.url)"
+          Write-Host "WebView data directory: $($window.dataDirectory)"
+          Select-String -Path web/index.html -Pattern 'Milestone 4 tabletop build'
+          Select-String -Path web/js/rules.js -Pattern 'APP_VERSION'
+          if ($package.version -ne "0.5.0") { throw "package.json is not v0.5.0." }
+          if ($tauri.version -ne "0.5.0") { throw "tauri.conf.json is not v0.5.0." }
+          if ($window.title -notmatch "Native v0\.4\.0") { throw "Native title lacks v0.5.0." }
+          if ($window.url -ne "index.html?v=0.5.0") { throw "Versioned app URL is missing." }
+          if ($window.dataDirectory -ne "desktop-webview-v0.5.0") { throw "Versioned WebView directory is missing." }
+          if (-not (Select-String web/index.html -Pattern '0.5.0' -Quiet)) { throw "index.html is not v0.5.0." }
+          if (-not (Select-String web/js/rules.js -Pattern '0.5.0' -Quiet)) { throw "rules.js is not v0.5.0." }
+          if (-not (Test-Path web/js/atlas.js)) { throw "Milestone 3 atlas module is missing." }
+          if (-not (Test-Path web/js/presentation.js)) { throw "Presentation module is missing." }
+          if (-not (Select-String web/js/manual.js -Pattern 'contextualManualTarget' -Quiet)) { throw "Milestone 4 contextual rule targeting is missing." }
+          if (-not (Select-String web/index.html -Pattern 'id="atlasPanel"' -Quiet)) { throw "Milestone 4 atlas panel is missing." }
+      - name: Install JavaScript dependencies
+        run: npm install
+      - name: Run automated tests
+        run: npm test
+      - name: Remove all previous Tauri output
+        shell: pwsh
+        run: |
+          if (Test-Path "src-tauri/target") { Remove-Item "src-tauri/target" -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path "windows-dist" | Out-Null
+      - name: Build Windows executable and installer
+        run: npm run tauri build -- --bundles nsis
+      - name: Assemble flat verified artifact
+        shell: pwsh
+        run: |
+          $portable = "src-tauri/target/release/dark-tower-open-companion.exe"
+          if (-not (Test-Path $portable)) { throw "Portable executable was not produced." }
+          Copy-Item $portable "windows-dist/Dark-Tower-Open-Companion-v0.5.0-portable.exe"
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer was not produced." }
+          Copy-Item $installer.FullName "windows-dist/Dark-Tower-Open-Companion-v0.5.0-setup.exe"
+          @(
+            "Application: Dark Tower: Open Companion"
+            "Native version: 0.5.0"
+            "Milestone: 4 — Tabletop layout and contextual rules"
+            "Expected title bar: Dark Tower: Open Companion — Native v0.5.0"
+            "Expected page label: Milestone 4 tabletop build · v0.5.0"
+            "Git commit: $env:GITHUB_SHA"
+            "Workflow run: $env:GITHUB_RUN_NUMBER"
+          ) | Set-Content "windows-dist/READ-ME-FIRST.txt"
+          Copy-Item "web/index.html" "windows-dist/SOURCE-index.html"
+          Copy-Item "web/js/rules.js" "windows-dist/SOURCE-rules.js"
+          Copy-Item "web/js/presentation.js" "windows-dist/SOURCE-presentation.js"
+          Copy-Item "web/js/manual.js" "windows-dist/SOURCE-manual.js"
+          Copy-Item "src-tauri/tauri.conf.json" "windows-dist/SOURCE-tauri.conf.json"
+      - name: Upload flat Windows package
+        uses: actions/upload-artifact@v6
+        with:
+          name: dark-tower-open-companion-v0.5.0-windows-run-${{ github.run_number }}
+          if-no-files-found: error
+          path: windows-dist/*
