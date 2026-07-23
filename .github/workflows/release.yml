@@ -1,0 +1,47 @@
+name: Publish Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Run game-engine tests
+        run: npm test
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Dark Tower: Open Companion v__VERSION__"
+          releaseBody: |
+            Unofficial, noncommercial fan project.
+
+            Download the Windows setup executable from the Assets section below.
+          releaseDraft: true
+          prerelease: true
+          args: --bundles nsis
