@@ -41,7 +41,7 @@ jobs:
           Select-String -Path web/js/rules.js -Pattern 'APP_VERSION'
           if ($package.version -ne "0.5.0") { throw "package.json is not v0.5.0." }
           if ($tauri.version -ne "0.5.0") { throw "tauri.conf.json is not v0.5.0." }
-          if ($window.title -notmatch "Native v0\.4\.0") { throw "Native title lacks v0.5.0." }
+          if ($window.title -notmatch "Native v0\.5\.0") { throw "Native title lacks v0.5.0." }
           if ($window.url -ne "index.html?v=0.5.0") { throw "Versioned app URL is missing." }
           if ($window.dataDirectory -ne "desktop-webview-v0.5.0") { throw "Versioned WebView directory is missing." }
           if (-not (Select-String web/index.html -Pattern '0.5.0' -Quiet)) { throw "index.html is not v0.5.0." }
