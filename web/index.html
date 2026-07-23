@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#15110f">
+  <meta name="description" content="Unofficial open-source tabletop companion for the 1981 Dark Tower board game.">
+  <title>Dark Tower: Open Companion</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Unofficial open-source fan project</div>
+      <h1>Dark Tower: Open Companion</h1>
+    </div>
+    <div class="top-actions">
+      <button id="tourBtn" class="small">Guided Tour</button>
+      <button id="atlasToggleBtn" class="small">Hide Map</button>
+      <button id="settingsBtn" class="small">Settings</button>
+      <button id="manualBtn" class="small manual-button">Rules Manual</button>
+      <button id="exportBtn" class="small" disabled>Export Save</button>
+      <label class="small file-button" aria-label="Import save file">Import Save<input id="importFile" type="file" accept="application/json,.json"></label>
+      <button id="newBtn" class="small danger" disabled>New Game</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="setupScreen" class="panel setup-panel">
+      <div class="setup-copy">
+        <div>
+          <div class="eyebrow">Milestone 4 tabletop build · v<span data-version>0.5.0</span></div>
+          <h2>Awaken the Tower</h2>
+          <p>This build replaces the electronic tower and score cards while you use the original board, a printed reference, or an improvised map.</p>
+        </div>
+        <div class="research-badge">Tabletop cockpit<br><strong>Milestone 4</strong></div>
+      </div>
+
+      <div class="form-grid">
+        <label>Players
+          <select id="playerCount">
+            <option value="1">1 player</option>
+            <option value="2">2 players</option>
+            <option value="3">3 players</option>
+            <option value="4" selected>4 players</option>
+          </select>
+        </label>
+        <label>Game level
+          <select id="gameLevel">
+            <option value="1">Level 1 — 17–32 Tower defenders</option>
+            <option value="2">Level 2 — 33–64 Tower defenders</option>
+            <option value="3">Level 3 — 17–64 Tower defenders</option>
+            <option value="4">Level 4 — tutorial endgame</option>
+          </select>
+        </label>
+        <label>Presentation
+          <select id="presentationMode">
+            <option value="deluxe" selected>Deluxe 2026 — map, animation, sound</option>
+            <option value="classic">Classic 1981 — focused tower view</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="nameFields" class="name-fields"></div>
+
+      <div class="setup-toggles">
+        <label class="toggle-row">
+          <input id="enhancedMode" type="checkbox" checked>
+          <span><strong>Enhanced guidance</strong><small>Show explanations and correction controls while retaining the classic rules.</small></span>
+        </label>
+        <label class="toggle-row">
+          <input id="tutorialOnStart" type="checkbox" checked>
+          <span><strong>Guided first turn</strong><small>Show a short tour after the game begins.</small></span>
+        </label>
+      </div>
+
+      <details class="seed-details">
+        <summary>Reproducible test seed</summary>
+        <label>Seed (optional)
+          <input id="seedInput" type="text" placeholder="Leave blank for a new random game">
+        </label>
+      </details>
+
+      <div class="setup-actions">
+        <button id="startBtn" class="primary">Begin Quest</button>
+        <button id="loadBtn" class="secondary">Resume Autosave</button>
+        <button id="setupManualBtn" class="secondary">Open Rules Manual</button>
+      </div>
+      <p class="note">The exact original firmware probabilities are still being researched. Deluxe artwork and synthesized audio are original to this project. All uncertain values are isolated in <code>web/js/rules.js</code> for transparent revision.</p>
+    </section>
+
+    <section id="gameScreen" class="hidden">
+      <div class="game-layout">
+          <section id="atlasPanel" class="panel atlas-panel" aria-label="Deluxe four-kingdom atlas">
+            <div class="atlas-header">
+              <div><div class="eyebrow">Original interactive reference</div><h2>Four-Kingdom Atlas</h2></div>
+              <div id="atlasStatus" class="atlas-status">Current kingdom</div>
+            </div>
+            <div id="atlasMap" class="atlas-map"></div>
+            <p class="atlas-note">The atlas selects landmark functions. Players still verify legal territory-by-territory movement.</p>
+          </section>
+
+          <section id="towerPanel" class="tower panel" aria-label="Tower companion controls">
+          <div class="tower-crown" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          <div id="towerDisplay" class="display" data-effect="idle" aria-live="polite">
+            <div class="display-scene" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            <div id="eventIcon" class="event-icon">◆</div>
+            <div id="eventTitle" class="event-title">THE TOWER WAITS</div>
+            <div id="numberDisplay" class="led">--</div>
+            <div id="eventText" class="event-text">Move one territory or remain where you are, then press the matching location button.</div>
+            <button id="contextRuleBtn" class="display-rule-button">Relevant Rule</button>
+          </div>
+
+          <div id="contextActions" class="context-actions hidden"></div>
+
+          <div class="keypad" aria-label="Tower keyboard">
+            <button data-action="yes" class="key green">YES<br><span>BUY / FIGHT</span></button>
+            <button data-action="repeat" class="key ivory">REPEAT</button>
+            <button data-action="no" class="key red">NO<br><span>END / RETREAT</span></button>
+
+            <button data-action="haggle" class="key amber">HAGGLE</button>
+            <button data-action="bazaar" class="key blue">BAZAAR</button>
+            <button data-action="clear" class="key ivory">CLEAR</button>
+
+            <button data-action="tomb" class="key blue">TOMB<br><span>RUIN</span></button>
+            <button data-action="move" class="key blue">MOVE</button>
+            <button data-action="sanctuary" class="key blue">SANCTUARY<br><span>CITADEL</span></button>
+
+            <button data-action="darktower" class="key orange">DARK<br><span>TOWER</span></button>
+            <button data-action="frontier" class="key blue">FRONTIER</button>
+            <button data-action="inventory" class="key tan">INVENTORY</button>
+          </div>
+        </section>
+
+        <aside class="side-column">
+          <section class="panel player-panel">
+            <div class="turn-row">
+              <div>
+                <div class="eyebrow">Current adventurer</div>
+                <h2 id="currentPlayerName">Player 1</h2>
+              </div>
+              <div id="turnBadge" class="turn-badge">TURN 1</div>
+            </div>
+
+            <label class="kingdom-picker">Board position: current kingdom
+              <select id="kingdomSelect"></select>
+            </label>
+
+            <div class="resource-grid">
+              <button class="resource" data-resource="warriors"><span>Warriors</span><strong id="warriors">10</strong><small>Tap to correct</small></button>
+              <button class="resource" data-resource="gold"><span>Gold</span><strong id="gold">30</strong><small id="goldCapacity">Capacity 60</small></button>
+              <button class="resource" data-resource="food"><span>Food</span><strong id="food">25</strong><small id="foodCost">1 per turn</small></button>
+            </div>
+
+            <div class="progress-row">
+              <div><span>Keys</span><strong id="keyProgress">0 / 3</strong></div>
+              <div><span>Frontiers</span><strong id="frontierProgress">0 / 4</strong></div>
+              <div><span>Tower</span><strong id="towerDefenders">?</strong></div>
+            </div>
+
+            <h3 class="subheading">Possessions</h3>
+            <div class="inventory-grid" id="inventoryGrid"></div>
+            <div class="key-grid" id="keyGrid"></div>
+
+            <button id="pegasusBtn" class="wide-action" disabled>Use Pegasus</button>
+          </section>
+
+          <section class="panel log-panel">
+            <div class="section-heading">
+              <div>
+                <div class="eyebrow">Seed <span id="seedLabel"></span></div>
+                <h3>Chronicle</h3>
+              </div>
+              <button id="clearLogBtn" class="small">Clear View</button>
+            </div>
+            <div id="gameLog" class="game-log"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="eyebrow">Tower prompt</div>
+          <h2 id="modalTitle">Event</h2>
+        </div>
+        <button id="modalClose" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <div id="modalBody"></div>
+      <div id="modalActions" class="modal-actions"></div>
+    </div>
+  </dialog>
+
+  <dialog id="manualDialog" class="manual-dialog">
+    <div class="manual-shell">
+      <header class="manual-header">
+        <div>
+          <div class="eyebrow">Original paraphrased reference</div>
+          <h2>Rules Manual</h2>
+        </div>
+        <button id="manualClose" class="icon-button" aria-label="Close rules manual">×</button>
+      </header>
+      <div class="manual-search-row">
+        <label for="manualSearch">Search rules</label>
+        <input id="manualSearch" type="search" placeholder="Try: battle, haggling, food, frontier…" autocomplete="off">
+      </div>
+      <div class="manual-layout">
+        <nav id="manualNav" class="manual-nav" aria-label="Rules sections"></nav>
+        <article id="manualContent" class="manual-content"></article>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <div class="settings-shell">
+      <header class="manual-header"><div><div class="eyebrow">Deluxe presentation</div><h2>Settings</h2></div><button id="settingsClose" class="icon-button" aria-label="Close settings">×</button></header>
+      <div class="settings-grid">
+        <label>Presentation mode<select id="settingsPresentation"><option value="deluxe">Deluxe 2026</option><option value="classic">Classic 1981</option></select></label>
+        <label class="settings-toggle"><input id="settingsMap" type="checkbox"><span>Show interactive atlas</span></label>
+        <label class="settings-toggle"><input id="settingsSound" type="checkbox"><span>Synthesized sound effects</span></label>
+        <label class="settings-toggle"><input id="settingsMusic" type="checkbox"><span>Ambient tower drone</span></label>
+        <label>Volume<input id="settingsVolume" type="range" min="0" max="1" step="0.05"></label>
+        <label class="settings-toggle"><input id="settingsReducedMotion" type="checkbox"><span>Reduce animation</span></label>
+        <label class="settings-toggle"><input id="settingsContrast" type="checkbox"><span>High contrast</span></label>
+        <label class="settings-toggle"><input id="settingsLargeText" type="checkbox"><span>Larger text</span></label>
+      </div>
+      <div class="modal-actions"><button id="settingsReset">Restore Defaults</button><button id="settingsSave" class="primary-action">Apply Settings</button></div>
+      <p class="note">Sound and music are generated live with the Web Audio API; no original game recordings are included.</p>
+    </div>
+  </dialog>
+
+  <div id="tutorialOverlay" class="tutorial-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <div class="tutorial-card">
+      <div class="eyebrow" id="tutorialProgress">Step 1</div>
+      <h2 id="tutorialTitle">Guided Tour</h2>
+      <p id="tutorialBody"></p>
+      <div class="tutorial-actions"><button id="tutorialBack">Back</button><button id="tutorialSkip">Close Tour</button><button id="tutorialNext" class="primary-action">Next</button></div>
+    </div>
+  </div>
+
+  <footer>
+    <strong>Dark Tower: Open Companion</strong> is an unofficial, noncommercial fan project and is not affiliated with or endorsed by Milton Bradley, Hasbro, or Restoration Games. No original board art, manual scans, logos, or sound recordings are included.
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "Dark Tower: Open Companion",
+  "short_name": "Dark Tower",
+  "description": "Deluxe open-source tabletop companion with interactive atlas, animated tower, synthesized sound, and accessible presentation modes.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0908",
+  "theme_color": "#15110f",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "id": "./?app-version=0.5.0"
+}
