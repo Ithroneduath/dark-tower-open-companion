@@ -1,0 +1,52 @@
+{
+  "name": "Dark Tower: Open Companion",
+  "short_name": "Dark Tower",
+  "description": "Tablet-refined open-source Dark Tower companion with offline play, shareable saves, and a shared Tower display.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0908",
+  "theme_color": "#15110f",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "id": "./?app-version=0.10.0",
+  "orientation": "any",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Companion",
+      "short_name": "Companion",
+      "url": "./",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Shared Tower Display",
+      "short_name": "Tower Display",
+      "url": "./display.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

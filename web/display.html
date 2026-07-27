@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#15110f">
+  <title>Dark Tower Shared Display</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="shared-display-body">
+  <header class="display-topbar">
+    <div><div class="eyebrow">Milestone 5 · live companion view</div><h1>Dark Tower — Shared Display</h1></div>
+    <div class="top-actions"><button id="displayFullscreen" class="small">Full Screen</button><button id="displayAwake" class="small">Keep Awake</button></div>
+  </header>
+  <main class="shared-display-main">
+    <section class="tower panel shared-tower" aria-live="polite">
+      <div class="tower-crown" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+      <div id="sharedTowerDisplay" class="display" data-effect="idle">
+        <div class="display-scene" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <div id="sharedIcon" class="event-icon">◆</div>
+        <div id="sharedTitle" class="event-title">WAITING FOR THE TOWER</div>
+        <div id="sharedNumber" class="led">--</div>
+        <div id="sharedText" class="event-text">Open this window from Device &amp; iPad in the main companion app.</div>
+      </div>
+    </section>
+    <section class="panel shared-player-panel">
+      <div><div class="eyebrow">Current adventurer</div><h2 id="sharedPlayer">Waiting…</h2></div>
+      <div class="shared-stat-grid">
+        <div><span>Turn</span><strong id="sharedTurn">—</strong></div>
+        <div><span>Kingdom</span><strong id="sharedKingdom">—</strong></div>
+        <div><span>Warriors</span><strong id="sharedWarriors">—</strong></div>
+        <div><span>Gold</span><strong id="sharedGold">—</strong></div>
+        <div><span>Food</span><strong id="sharedFood">—</strong></div>
+        <div><span>Keys</span><strong id="sharedKeys">—</strong></div>
+      </div>
+      <p id="sharedStatus" class="note">Waiting for a live game on this browser and device.</p>
+    </section>
+  </main>
+  <footer>Display-only view · v0.10.0. Keep the main companion open to receive updates.</footer>
+  <script type="module" src="js/display.js"></script>
+</body>
+</html>
