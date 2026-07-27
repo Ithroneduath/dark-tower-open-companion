@@ -1,0 +1,116 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "src-tauri/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/build-windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify v0.10.0 Milestone 9 source
+        shell: pwsh
+        run: |
+          $expected = "0.10.0"
+          $package = Get-Content package.json | ConvertFrom-Json
+          $tauri = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
+          $main = $tauri.app.windows | Where-Object { $_.label -eq "main" }
+          $shared = $tauri.app.windows | Where-Object { $_.label -eq "shared-display" }
+
+          Write-Host "Expected version: $expected"
+          Write-Host "package.json version: $($package.version)"
+          Write-Host "Tauri version: $($tauri.version)"
+          Write-Host "Main title: $($main.title)"
+          Write-Host "Shared window present: $([bool]$shared)"
+          Select-String -Path web/index.html -Pattern 'Milestone 9 map refinement'
+          Select-String -Path web/js/rules.js -Pattern 'APP_VERSION'
+
+          if ($package.version -ne $expected) { throw "package.json is not v$expected." }
+          if ($tauri.version -ne $expected) { throw "tauri.conf.json is not v$expected." }
+          if ($main.title -notmatch [regex]::Escape("Native v$expected")) { throw "Native title lacks v$expected." }
+          if ($main.url -ne "index.html?v=$expected") { throw "Versioned app URL is missing." }
+          if (-not $tauri.app.withGlobalTauri) { throw "Global Tauri API is not enabled." }
+          if (-not $shared) { throw "Native Shared Tower window configuration is missing." }
+          if ($shared.visible -ne $false) { throw "Shared display must start hidden." }
+          if (-not (Select-String src-tauri/src/lib.rs -Pattern 'async fn show_shared_display' -Quiet)) { throw "Native Shared Tower Rust command is missing." }
+          if (-not (Select-String web/js/app.js -Pattern 'nativeInvoke\("show_shared_display"\)' -Quiet)) { throw "Desktop Shared Tower invocation is missing." }
+          if (-not (Select-String web/js/atlas.js -Pattern 'Winged Lion' -Quiet)) { throw "Refined heraldry is missing." }
+          if (-not (Select-String web/js/board.js -Pattern '\["DARK", "TOWER"\]' -Quiet)) { throw "Two-line Dark Tower labels are missing." }
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Check Rust source
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Remove all previous Tauri output
+        shell: pwsh
+        run: |
+          if (Test-Path "src-tauri/target") {
+            Remove-Item "src-tauri/target" -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path "windows-dist" | Out-Null
+
+      - name: Build Windows executable and installer
+        run: npm run tauri build -- --bundles nsis
+
+      - name: Assemble flat verified artifact
+        shell: pwsh
+        run: |
+          $expected = "0.10.0"
+          $portable = "src-tauri/target/release/dark-tower-open-companion.exe"
+          if (-not (Test-Path $portable)) { throw "Portable executable was not produced." }
+          Copy-Item $portable "windows-dist/Dark-Tower-Open-Companion-v$expected-portable.exe"
+
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer was not produced." }
+          Copy-Item $installer.FullName "windows-dist/Dark-Tower-Open-Companion-v$expected-setup.exe"
+
+          @(
+            "Application: Dark Tower: Open Companion"
+            "Native version: $expected"
+            "Milestone: 9 — map refinement and native Shared Tower display"
+            "Expected title bar: Dark Tower: Open Companion — Native v$expected"
+            "Shared Tower: native secondary Tauri window"
+            "Git commit: $env:GITHUB_SHA"
+            "Workflow run: $env:GITHUB_RUN_NUMBER"
+          ) | Set-Content "windows-dist/READ-ME-FIRST.txt"
+
+          Copy-Item "web/index.html" "windows-dist/SOURCE-index.html"
+          Copy-Item "web/js/app.js" "windows-dist/SOURCE-app.js"
+          Copy-Item "web/js/board.js" "windows-dist/SOURCE-board.js"
+          Copy-Item "web/js/atlas.js" "windows-dist/SOURCE-atlas.js"
+          Copy-Item "src-tauri/src/lib.rs" "windows-dist/SOURCE-lib.rs"
+          Copy-Item "src-tauri/tauri.conf.json" "windows-dist/SOURCE-tauri.conf.json"
+
+      - name: Upload flat Windows package
+        uses: actions/upload-artifact@v6
+        with:
+          name: dark-tower-open-companion-v0.10.0-windows-run-${{ github.run_number }}
+          if-no-files-found: error
+          path: windows-dist/*
