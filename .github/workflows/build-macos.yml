@@ -1,0 +1,137 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "src-tauri/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/build-macos.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos-arm64:
+    name: Build Apple Silicon DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Confirm Apple Silicon runner
+        shell: bash
+        run: |
+          echo "Runner architecture: $(uname -m)"
+          if [ "$(uname -m)" != "arm64" ]; then
+            echo "::error::This workflow requires an ARM64 macOS runner."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Rust stable
+        shell: bash
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup target add aarch64-apple-darwin
+          rustc --version
+          cargo --version
+
+      - name: Verify v0.10.1 source
+        shell: bash
+        run: |
+          EXPECTED="0.10.1"
+
+          test -f package.json || { echo "::error::package.json is missing."; exit 1; }
+
+          PACKAGE_VERSION="$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8').replace(/^\uFEFF/,'')); process.stdout.write(p.version || '')")"
+          TAURI_VERSION="$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')); process.stdout.write(p.version || '')")"
+          MAIN_TITLE="$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')); process.stdout.write(p.app.windows.find(w=>w.label==='main')?.title || '')")"
+          SIGNING_IDENTITY="$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')); process.stdout.write(p.bundle?.macOS?.signingIdentity || '')")"
+
+          echo "Expected version: $EXPECTED"
+          echo "package.json version: $PACKAGE_VERSION"
+          echo "Tauri version: $TAURI_VERSION"
+          echo "Main title: $MAIN_TITLE"
+          echo "macOS signing identity: $SIGNING_IDENTITY"
+
+          [ "$PACKAGE_VERSION" = "$EXPECTED" ] || { echo "::error::package.json is not v$EXPECTED."; exit 1; }
+          [ "$TAURI_VERSION" = "$EXPECTED" ] || { echo "::error::tauri.conf.json is not v$EXPECTED."; exit 1; }
+          [[ "$MAIN_TITLE" == *"Native v$EXPECTED"* ]] || { echo "::error::Native title lacks v$EXPECTED."; exit 1; }
+          [ "$SIGNING_IDENTITY" = "-" ] || { echo "::error::Ad-hoc macOS signing is not configured."; exit 1; }
+          grep -q 'Milestone 9.1 macOS support' web/index.html || { echo "::error::macOS support page label is missing."; exit 1; }
+          grep -q 'APP_VERSION = "0.10.1"' web/js/rules.js || { echo "::error::rules.js is not v$EXPECTED."; exit 1; }
+          test -f src-tauri/icons/icon.icns || { echo "::error::macOS icon.icns is missing."; exit 1; }
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Check Rust source
+        run: cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin
+
+      - name: Remove previous build output
+        shell: bash
+        run: |
+          rm -rf src-tauri/target
+          mkdir -p macos-dist
+
+      - name: Build Apple Silicon app and DMG
+        shell: bash
+        env:
+          CI: "true"
+        run: |
+          npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg --ci
+
+      - name: Assemble flat macOS artifact
+        shell: bash
+        run: |
+          EXPECTED="0.10.1"
+          BUNDLE_ROOT="src-tauri/target/aarch64-apple-darwin/release/bundle"
+          APP_PATH="$(find "$BUNDLE_ROOT/macos" -maxdepth 1 -name '*.app' -print -quit)"
+          DMG_PATH="$(find "$BUNDLE_ROOT/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::macOS .app bundle was not produced."
+            exit 1
+          fi
+          if [ -z "$DMG_PATH" ] || [ ! -f "$DMG_PATH" ]; then
+            echo "::error::macOS .dmg was not produced."
+            exit 1
+          fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "macos-dist/Dark-Tower-Open-Companion-v$EXPECTED-arm64.app.zip"
+          cp "$DMG_PATH" "macos-dist/Dark-Tower-Open-Companion-v$EXPECTED-arm64.dmg"
+
+          printf '%s\n' \
+            "Dark Tower: Open Companion" \
+            "Version: $EXPECTED" \
+            "Architecture: Apple Silicon ARM64" \
+            "Intended Macs: M1, M2, M3, M4 and newer Apple Silicon Macs" \
+            "Signing: ad-hoc (-), not Apple notarized" \
+            "" \
+            "Recommended:" \
+            "1. Open the DMG." \
+            "2. Drag Dark Tower Open Companion into Applications." \
+            "3. If macOS blocks the first launch, use System Settings > Privacy & Security and choose Open Anyway." \
+            "" \
+            "The Shared Tower Display uses the native secondary Tauri window." \
+            > macos-dist/READ-ME-FIRST.txt
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v6
+        with:
+          name: dark-tower-open-companion-v0.10.1-macos-arm64-run-${{ github.run_number }}
+          if-no-files-found: error
+          path: macos-dist/*
